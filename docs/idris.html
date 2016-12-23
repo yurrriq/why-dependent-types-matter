@@ -1,0 +1,322 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+</head>
+<body>
+<hr />
+<p>author: Jan Stolarek <a href="mailto:jan.stolarek@p.lodz.pl">jan.stolarek@p.lodz.pl</a><br />
+license: Public Domain</p>
+<hr />
+<h1 id="why-dependent-types-matter">Why Dependent Types Matter</h1>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell"><span class="fu">|||</span> <span class="dt">Why</span> <span class="dt">Dependent</span> <span class="dt">Types</span> <span class="dt">Matter</span>
+<span class="kw">module</span> <span class="dt">Data.YDTM</span></code></pre></div>
+<p>This module contains an Idris implementation of the code presented in <em>Why Dependent Types Matter</em> by Thorsten Altenkirch, Conor McBride and James McKinna. The original code in the paper was written in Epigram. Previously I rewrote that code to Agda and now I made another rewrite in Idris. With the Idris implementation, I decided to use many of the built-in features. This made some things (like proofs) a lot simpler. Also, at the moment, Idris's totality checker does a better job than Agda's (remember that <code>idris-mode</code> does not highlight partial functions - you need to enable totality checking via the command line option, <code>total</code> annotation or in the REPL using the <code>:total</code> command).</p>
+<p>This file is a rewrite of the Agda implementation. I decided to remove all original comments from the <code>.agda</code> file and comment only the things that are different in Idris. This allows you to focus easily on the new stuff, but it also assumes that you've read Agda implementation.</p>
+<p>This code was written and tested in Idris 0.99. YMMV</p>
+<p>In case of Idris, we don't need to reinvent the wheel. We have <code>Nat</code>, <code>Bool</code>, <code>List</code>s and tuples (<code>Pair</code>s) already at hand in the standard <code>prelude</code>, which is imported by default into every Idris module. Starting with Idris 0.9.16, vectors are in the <code>Data.Vect</code> module and are not available by default in <code>prelude</code>, so we need to import them.</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell"><span class="kw">import </span><span class="dt">Data.Vect</span>
+
+<span class="fu">%</span>default total</code></pre></div>
+<h2 id="introduction">Introduction</h2>
+<p>The Idris <code>prelude</code> provides much of what we need already:</p>
+<ul>
+<li><code>Nat</code> <span class="math inline">↦</span> <code>Nat</code></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">data</span> <span class="dt">Nat</span> <span class="fu">=</span> <span class="dt">Z</span> <span class="fu">|</span> <span class="dt">S</span> <span class="dt">Nat</span></code></pre></div>
+<ul>
+<li><code>Order</code> <span class="math inline">↦</span> <code>Ordering</code></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">data</span> <span class="dt">Ordering</span> <span class="ot">:</span> <span class="dt">Type</span> <span class="kw">where</span>
+  <span class="dt">LT</span> <span class="ot">:</span> <span class="dt">Ordering</span>
+  <span class="dt">EQ</span> <span class="ot">:</span> <span class="dt">Ordering</span>
+  <span class="dt">GT</span> <span class="ot">:</span> <span class="dt">Ordering</span></code></pre></div>
+<ul>
+<li><code>List</code> <span class="math inline">↦</span> <code>List</code></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">data</span> <span class="dt">List</span> <span class="ot">:</span> (elem <span class="ot">:</span> <span class="dt">Type</span>) <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+   <span class="dt">Nil</span>    <span class="ot">:</span> <span class="dt">List</span> elem
+   <span class="fu">(::)</span>   <span class="ot">:</span> (x <span class="ot">:</span> elem) <span class="ot">-&gt;</span> (xs <span class="ot">:</span> <span class="dt">List</span> elem) <span class="ot">-&gt;</span> <span class="dt">List</span> elem</code></pre></div>
+<ul>
+<li><code>order</code> <span class="math inline">↦</span> <code>compare</code></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris">interface <span class="dt">Eq</span> ty <span class="ot">=&gt;</span> <span class="dt">Ord</span> ty <span class="kw">where</span>
+  <span class="fu">compare</span> <span class="ot">:</span> ty <span class="ot">-&gt;</span> ty <span class="ot">-&gt;</span> <span class="dt">Ordering</span>
+  <span class="co">-- ...</span>
+
+implementation <span class="dt">Ord</span> <span class="dt">Nat</span> <span class="kw">where</span>
+  compare <span class="dt">Z</span> <span class="dt">Z</span>         <span class="fu">=</span> <span class="dt">EQ</span>
+  compare <span class="dt">Z</span> (<span class="dt">S</span> k)     <span class="fu">=</span> <span class="dt">LT</span>
+  compare (<span class="dt">S</span> k) <span class="dt">Z</span>     <span class="fu">=</span> <span class="dt">GT</span>
+  compare (<span class="dt">S</span> x) (<span class="dt">S</span> y) <span class="fu">=</span> compare x y</code></pre></div>
+<p>The rest we'll need to write ourselves.</p>
+<p>To avoid naming conflicts between our <code>merge</code> and <code>sort</code> functions and their <code>prelude</code> analogs, we can <code>%hide</code> them.</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell"><span class="fu">%</span>hide List.merge
+<span class="fu">%</span>hide List.sort</code></pre></div>
+<p>Problems we had with termination checking of merge function in Agda are gone in Idris.</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">namespace <span class="dt">Introduction</span>
+
+  merge <span class="fu">:</span> (xs, ys <span class="fu">:</span> <span class="dt">List</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">Nat</span>
+  merge [] ys <span class="fu">=</span> ys
+  merge xs [] <span class="fu">=</span> xs
+  merge (<span class="ot">x ::</span> xs) (<span class="ot">y ::</span> ys) with (compare x y)
+    <span class="fu">|</span> <span class="dt">GT</span> <span class="fu">=</span><span class="ot"> y ::</span> merge (<span class="ot">x ::</span> xs) ys
+    <span class="fu">|</span> _  <span class="fu">=</span><span class="ot"> x ::</span> merge xs (<span class="ot">y ::</span> ys)
+
+  <span class="fu">|||</span> <span class="dt">Deal</span> out a list into two lists <span class="kw">of</span> (roughly) half the length<span class="fu">.</span>
+  deal <span class="fu">:</span> <span class="dt">List</span> a <span class="ot">-&gt;</span> (<span class="dt">List</span> a, <span class="dt">List</span> a)
+  deal []        <span class="fu">=</span> ([], [])
+  deal (<span class="ot">x ::</span> []) <span class="fu">=</span> (<span class="ot">x ::</span> [], [])
+  deal (<span class="ot">y ::</span> (<span class="ot">z ::</span> xs)) with (deal xs)
+    <span class="fu">|</span> (ys, zs) <span class="fu">=</span> (<span class="ot">y ::</span> ys,<span class="ot"> z ::</span> zs)</code></pre></div>
+<p>Still, <code>sort</code> is not recognized as total.</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">  partial
+  sort <span class="fu">:</span> <span class="dt">List</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">Nat</span>
+  sort xs with (deal xs)
+    <span class="fu">|</span> (ys, []) <span class="fu">=</span> ys
+    <span class="fu">|</span> (ys, zs) <span class="fu">=</span> merge (sort ys) (sort zs)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">3.1</span> <span class="fu">:</span> <span class="dt">Totality</span> is <span class="dt">Good</span> for more than the <span class="dt">Soul</span> <span class="fu">--&gt;</span></code></pre></div>
+<h2 id="totality-is-good-for-more-than-the-soul">Totality is Good for more than the Soul</h2>
+<p>I'll use the <code>Refl</code> provide by Idris.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">3.2</span> <span class="fu">:</span> <span class="dt">Defusing</span> <span class="dt">General</span> <span class="dt">Recursion</span> <span class="fu">--&gt;</span></code></pre></div>
+<h2 id="defusing-general-recursion">Defusing General Recursion</h2>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">namespace <span class="dt">DefusingGeneralRecursion</span>
+
+  <span class="kw">data</span> <span class="dt">Parity</span> <span class="fu">=</span> <span class="dt">P0</span> <span class="fu">|</span> <span class="dt">P1</span>
+
+  <span class="kw">data</span> <span class="dt">DealT</span> <span class="fu">:</span> a <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+       <span class="dt">EmpT</span>  <span class="fu">:</span> <span class="dt">DealT</span> a
+       <span class="dt">LeafT</span> <span class="fu">:</span> (x <span class="fu">:</span> a) <span class="ot">-&gt;</span> <span class="dt">DealT</span> a
+       <span class="dt">NodeT</span> <span class="fu">:</span> (p <span class="fu">:</span> <span class="dt">Parity</span>) <span class="ot">-&gt;</span> (l, r <span class="fu">:</span> <span class="dt">DealT</span> a) <span class="ot">-&gt;</span> <span class="dt">DealT</span> a
+
+  insertT <span class="fu">:</span> (x <span class="fu">:</span> a) <span class="ot">-&gt;</span> (t <span class="fu">:</span> <span class="dt">DealT</span> a) <span class="ot">-&gt;</span> <span class="dt">DealT</span> a
+  insertT x <span class="dt">EmpT</span>           <span class="fu">=</span> <span class="dt">LeafT</span> x
+  insertT x (<span class="dt">LeafT</span> y)      <span class="fu">=</span> <span class="dt">NodeT</span> <span class="dt">P0</span> (<span class="dt">LeafT</span> y) (<span class="dt">LeafT</span> x)
+  insertT x (<span class="dt">NodeT</span> <span class="dt">P0</span> l r) <span class="fu">=</span> <span class="dt">NodeT</span> <span class="dt">P1</span> (insertT x l) r
+  insertT x (<span class="dt">NodeT</span> <span class="dt">P1</span> l r) <span class="fu">=</span> <span class="dt">NodeT</span> <span class="dt">P0</span> l (insertT x r)
+
+  dealT <span class="fu">:</span> <span class="dt">List</span> a <span class="ot">-&gt;</span> <span class="dt">DealT</span> a
+  dealT []        <span class="fu">=</span> <span class="dt">EmpT</span>
+  dealT (<span class="ot">x ::</span> xs) <span class="fu">=</span> insertT x (dealT xs)
+
+  mergeT <span class="fu">:</span> <span class="dt">DealT</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">Nat</span>
+  mergeT <span class="dt">EmpT</span>          <span class="fu">=</span> []
+  mergeT (<span class="dt">LeafT</span> x)     <span class="fu">=</span> [x]
+  mergeT (<span class="dt">NodeT</span> p l r) <span class="fu">=</span> merge (mergeT l) (mergeT r)
+
+  sortT <span class="fu">:</span> (xs <span class="fu">:</span> <span class="dt">List</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">Nat</span>
+  sortT <span class="fu">=</span> mergeT <span class="fu">.</span> dealT</code></pre></div>
+<!-- Section 4 -->
+<h2 id="maintaining-invariants-by-static-indexing">Maintaining Invariants by Static Indexing</h2>
+<p>I'm using Idris Vectors, which are defined as:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">data</span> <span class="dt">Vect</span> <span class="ot">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span>
+     <span class="dt">Nil</span>  <span class="ot">:</span> <span class="dt">Vect</span> <span class="dt">Z</span> a
+     <span class="fu">(::)</span> <span class="ot">:</span> a <span class="ot">-&gt;</span> <span class="dt">Vect</span> k a <span class="ot">-&gt;</span> <span class="dt">Vect</span> (<span class="dt">S</span> k) a</code></pre></div>
+<p>This is slightly different than Agda's definition: the index comes first and the type parameter comes second. Note that prior to Idris 0.9.9, the type parameter was first and the index was second.</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="fu">tail</span> <span class="ot">:</span> <span class="dt">Vect</span> (<span class="dt">S</span> len) elem <span class="ot">-&gt;</span> <span class="dt">Vect</span> len elem
+tail (x<span class="ot">::</span>xs) <span class="fu">=</span> xs</code></pre></div>
+<p>For Epigram's 'vectorized application' we have <code>Vect</code>'s <code>Applicative</code> implementation:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris">implementation <span class="dt">Applicative</span> (<span class="dt">Vect</span> k) <span class="kw">where</span>
+  <span class="co">-- ...</span>
+  fs <span class="fu">&lt;*&gt;</span> vs <span class="fu">=</span> zipWith apply fs vs</code></pre></div>
+<p>As a reminder, here'e the definition of addition:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">total</span> <span class="fu">plus</span> <span class="ot">:</span> (n, m <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Nat</span>
+plus <span class="dt">Z</span> right        <span class="fu">=</span> right
+plus (<span class="dt">S</span> left) right <span class="fu">=</span> <span class="dt">S</span> (plus left right)</code></pre></div>
+<p>And here's definition of appending two Vectors:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="fu">(++)</span> <span class="ot">:</span> (xs <span class="ot">:</span> <span class="dt">Vect</span> m elem) <span class="ot">-&gt;</span> (ys <span class="ot">:</span> <span class="dt">Vect</span> n elem) <span class="ot">-&gt;</span> <span class="dt">Vect</span> (m <span class="fu">+</span> n) elem
+(<span class="fu">++</span>) []      ys <span class="fu">=</span> ys
+(<span class="fu">++</span>) (x<span class="ot">::</span>xs) ys <span class="fu">=</span> x <span class="ot">::</span> xs <span class="fu">++</span> ys</code></pre></div>
+<p>In both cases I'll be using the built-in Idris definitions.</p>
+<p>Idris also provides <code>replicate</code> (née <span class="math inline"><em>v</em><em>e</em><em>c</em><sub><em>n</em></sub></span>) and <code>transpose</code> (née <code>xpose</code>):</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="fu">replicate</span> <span class="ot">:</span> (len <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> (x <span class="ot">:</span> elem) <span class="ot">-&gt;</span> <span class="dt">Vect</span> len elem
+replicate <span class="dt">Z</span>     x <span class="fu">=</span> []
+replicate (<span class="dt">S</span> k) x <span class="fu">=</span> x <span class="ot">::</span> replicate k x
+
+<span class="fu">transpose</span> <span class="ot">:</span> {n <span class="ot">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> <span class="dt">Vect</span> m (<span class="dt">Vect</span> n elem) <span class="ot">-&gt;</span> <span class="dt">Vect</span> n (<span class="dt">Vect</span> m elem)
+transpose []        <span class="fu">=</span> replicate <span class="fu">_</span> []
+transpose (x <span class="ot">::</span> xs) <span class="fu">=</span> zipWith (<span class="ot">::</span>) x (transpose xs)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">4.1</span> <span class="fu">--&gt;</span></code></pre></div>
+<h3 id="static-indexing-and-proofs">Static Indexing and Proofs</h3>
+<p><code>vrevacc</code> from the paper is basically the local <code>go</code> from Idris's <code>reverse</code>.</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="fu">reverse</span> <span class="ot">:</span> <span class="dt">Vect</span> len elem <span class="ot">-&gt;</span> <span class="dt">Vect</span> len elem
+reverse xs <span class="fu">=</span> go [] xs
+  <span class="kw">where</span> <span class="fu">go</span> <span class="ot">:</span> <span class="dt">Vect</span> n elem <span class="ot">-&gt;</span> <span class="dt">Vect</span> m elem <span class="ot">-&gt;</span> <span class="dt">Vect</span> (n<span class="fu">+</span>m) elem</code></pre></div>
+<p>In the first clause we need to prove <code>n + 0 = n</code>, aka <code>plusZero</code> in the paper. Idris calls that <code>plusZeroRightNeutral</code> in <code>Prelude.Nat</code>.</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris">go {n} acc [] <span class="fu">=</span> <span class="kw">rewrite</span> plusZeroRightNeutral n <span class="kw">in</span> acc</code></pre></div>
+<p>Again, we can't just fill in the right-hand side of the second clause, because Idris doesn't know that <code>m + (1 + n)</code> equals <code>1 + (m + n)</code>.</p>
+<p>Translating to Idris, We need to prove:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris">plus n (<span class="dt">S</span> m) <span class="fu">=</span> <span class="dt">S</span> (plus n m)</code></pre></div>
+<p>Luckily, <code>Prelude.Nat</code> also includes <code>plusSuccRightSucc</code>:</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="kw">total</span> <span class="fu">plusSuccRightSucc</span> <span class="ot">:</span> (left <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> (right <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span>
+  <span class="dt">S</span> (left <span class="fu">+</span> right) <span class="fu">=</span> left <span class="fu">+</span> (<span class="dt">S</span> right)</code></pre></div>
+<p>We use <code>rewrite</code> to rewrite our value using <code>plusSuccRightSucc</code>. Since <code>plusSuccRightSucc</code> proves property in the opposite direction we use <code>sym</code> to reverse its sides.</p>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris">go {n} {m<span class="fu">=</span><span class="dt">S</span> m} acc (x <span class="ot">::</span> xs) <span class="fu">=</span> <span class="kw">rewrite</span> sym (plusSuccRightSucc n m) <span class="kw">in</span>
+                                       go (x<span class="ot">::</span>acc) xs</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">4.2</span> <span class="fu">--&gt;</span></code></pre></div>
+<h2 id="sized-merge-sort">Sized Merge-Sort</h2>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">namespace <span class="dt">Sized</span>
+
+  merge <span class="fu">:</span> <span class="dt">Vect</span> n <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> m <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> (n <span class="fu">+</span> m) <span class="dt">Nat</span>
+  merge [] ys     <span class="fu">=</span> ys
+  merge xs [] {n} <span class="fu">=</span> rewrite plusZeroRightNeutral n <span class="kw">in</span> xs
+  merge (<span class="ot">x ::</span> xs) (<span class="ot">y ::</span> ys) {n <span class="fu">=</span> <span class="dt">S</span> k} {m <span class="fu">=</span> <span class="dt">S</span> j} with (compare x y)
+    <span class="fu">|</span> <span class="dt">GT</span> <span class="fu">=</span> rewrite sym (plusSuccRightSucc k j) <span class="kw">in</span>
+<span class="ot">                   y ::</span> Sized.merge (<span class="ot">x ::</span> xs) ys
+    <span class="fu">|</span> _  <span class="fu">=</span><span class="ot"> x ::</span> Sized.merge xs (<span class="ot">y ::</span> ys)
+
+  p2n <span class="fu">:</span> <span class="dt">Parity</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span>
+  p2n <span class="dt">P0</span> <span class="fu">=</span> <span class="dt">Z</span>
+  p2n <span class="dt">P1</span> <span class="fu">=</span> <span class="dt">S</span> <span class="dt">Z</span>
+
+  <span class="kw">data</span> <span class="dt">DealT</span> <span class="fu">:</span> a <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+       <span class="dt">EmpT</span>  <span class="fu">:</span> <span class="dt">DealT</span> a <span class="dt">Z</span>
+       <span class="dt">LeafT</span> <span class="fu">:</span> a <span class="ot">-&gt;</span> <span class="dt">DealT</span> a (<span class="dt">S</span> <span class="dt">Z</span>)
+       <span class="dt">NodeT</span> <span class="fu">:</span> (p <span class="fu">:</span> <span class="dt">Parity</span>) <span class="ot">-&gt;</span> <span class="dt">DealT</span> a (p2n p <span class="fu">+</span> n) <span class="ot">-&gt;</span> <span class="dt">DealT</span> a n <span class="ot">-&gt;</span>
+                <span class="dt">DealT</span> a ((p2n p <span class="fu">+</span> n) <span class="fu">+</span> n)
+
+  mergeT <span class="fu">:</span> <span class="dt">DealT</span> <span class="dt">Nat</span> n <span class="ot">-&gt;</span> <span class="dt">Vect</span> n <span class="dt">Nat</span>
+  mergeT <span class="dt">EmpT</span>          <span class="fu">=</span> []
+  mergeT (<span class="dt">LeafT</span> x)     <span class="fu">=</span> [x]
+  mergeT (<span class="dt">NodeT</span> p l r) <span class="fu">=</span> Sized.merge (mergeT l) (mergeT r)
+
+  insertT <span class="fu">:</span> {n <span class="fu">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> {<span class="dt">X</span> <span class="fu">:</span> <span class="dt">Type</span>} <span class="ot">-&gt;</span> <span class="dt">X</span> <span class="ot">-&gt;</span> <span class="dt">DealT</span> <span class="dt">X</span> n <span class="ot">-&gt;</span> <span class="dt">DealT</span> <span class="dt">X</span> (<span class="dt">S</span> n)
+  insertT x <span class="dt">EmpT</span>               <span class="fu">=</span> <span class="dt">LeafT</span> x
+  insertT x (<span class="dt">LeafT</span> y         ) <span class="fu">=</span> <span class="dt">NodeT</span> <span class="dt">P0</span> (<span class="dt">LeafT</span> y) (<span class="dt">LeafT</span> x)
+  insertT x (<span class="dt">NodeT</span>     <span class="dt">P0</span> l r) <span class="fu">=</span> <span class="dt">NodeT</span> <span class="dt">P1</span> (insertT x l) r
+  insertT x (<span class="dt">NodeT</span> {n} <span class="dt">P1</span> l r) <span class="fu">=</span> rewrite plusSuccRightSucc n n <span class="kw">in</span>
+                                         <span class="dt">NodeT</span> <span class="dt">P0</span> l (insertT x r)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Lest</span> equation <span class="kw">of</span> insertT looks much simpler than <span class="kw">in</span> <span class="dt">Agda</span><span class="fu">!</span> <span class="fu">--&gt;</span></code></pre></div>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">  dealT <span class="fu">:</span> <span class="dt">Vect</span> n a <span class="ot">-&gt;</span> <span class="dt">DealT</span> a n
+  dealT []        <span class="fu">=</span> <span class="dt">EmpT</span>
+  dealT (<span class="ot">x ::</span> xs) <span class="fu">=</span> insertT x (dealT xs)
+
+  sortT <span class="fu">:</span> <span class="dt">Vect</span> n <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Vect</span> n <span class="dt">Nat</span>
+  sortT xs <span class="fu">=</span> mergeT (dealT xs)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">5.1</span> <span class="fu">--&gt;</span></code></pre></div>
+<h2 id="evidence-of-ordering">Evidence of Ordering</h2>
+<div class="sourceCode"><pre class="sourceCode idris"><code class="sourceCode idris"><span class="co">||| If two numbers are ordered, their predecessors are too</span>
+<span class="fu">fromLteSucc</span> <span class="ot">:</span> (<span class="dt">S</span> m <span class="fu">`LTE`</span> <span class="dt">S</span> n) <span class="ot">-&gt;</span> (m <span class="fu">`LTE`</span> n)
+fromLteSucc (<span class="dt">LTESucc</span> x) <span class="fu">=</span> x
+
+<span class="co">||| A decision procedure for `LTE`</span>
+<span class="fu">isLTE</span> <span class="ot">:</span> (m, n <span class="ot">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Dec</span> (m <span class="fu">`LTE`</span> n)
+isLTE <span class="dt">Z</span> n <span class="fu">=</span> <span class="dt">Yes</span> <span class="dt">LTEZero</span>
+isLTE (<span class="dt">S</span> k) <span class="dt">Z</span> <span class="fu">=</span> <span class="dt">No</span> succNotLTEzero
+isLTE (<span class="dt">S</span> k) (<span class="dt">S</span> j) <span class="kw">with</span> (isLTE k j)
+isLTE (<span class="dt">S</span> k) (<span class="dt">S</span> j) <span class="fu">|</span> (<span class="dt">Yes</span> prf) <span class="fu">=</span> <span class="dt">Yes</span> (<span class="dt">LTESucc</span> prf)
+isLTE (<span class="dt">S</span> k) (<span class="dt">S</span> j) <span class="fu">|</span> (<span class="dt">No</span> contra) <span class="fu">=</span> <span class="dt">No</span> (contra <span class="fu">.</span> fromLteSucc)
+
+<span class="co">||| `LTE` is reflexive.</span>
+<span class="fu">lteRefl</span> <span class="ot">:</span> <span class="dt">LTE</span> n n
+lteRefl {n <span class="fu">=</span> <span class="dt">Z</span>}   <span class="fu">=</span> <span class="dt">LTEZero</span>
+lteRefl {n <span class="fu">=</span> <span class="dt">S</span> k} <span class="fu">=</span> <span class="dt">LTESucc</span> lteRefl
+
+<span class="co">||| `LTE` is transitive</span>
+<span class="fu">lteTransitive</span> <span class="ot">:</span> <span class="dt">LTE</span> n m <span class="ot">-&gt;</span> <span class="dt">LTE</span> m p <span class="ot">-&gt;</span> <span class="dt">LTE</span> n p
+lteTransitive <span class="dt">LTEZero</span> y <span class="fu">=</span> <span class="dt">LTEZero</span>
+lteTransitive (<span class="dt">LTESucc</span> x) (<span class="dt">LTESucc</span> y) <span class="fu">=</span> <span class="dt">LTESucc</span> (lteTransitive x y)</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">lteASym <span class="fu">:</span> {x, y <span class="fu">:</span> <span class="dt">Nat</span>} <span class="ot">-&gt;</span> <span class="dt">LTE</span> x y <span class="ot">-&gt;</span> <span class="dt">LTE</span> y x <span class="ot">-&gt;</span> x <span class="fu">=</span> x
+lteASym <span class="dt">LTEZero</span>      <span class="dt">LTEZero</span>      <span class="fu">=</span> <span class="dt">Refl</span>
+lteASym (<span class="dt">LTESucc</span> xy) (<span class="dt">LTESucc</span> yx) <span class="fu">=</span> <span class="dt">Refl</span></code></pre></div>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">!--</span> <span class="dt">Section</span> <span class="fl">5.2</span> <span class="fu">--&gt;</span></code></pre></div>
+<h2 id="locally-sorted-lists">Locally Sorted Lists</h2>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell"><span class="kw">data</span> <span class="dt">LNat</span> <span class="fu">:</span> <span class="dt">Type</span> <span class="kw">where</span>
+     <span class="dt">ZL</span>   <span class="fu">:</span> <span class="dt">LNat</span>
+     <span class="dt">SL</span>   <span class="fu">:</span> <span class="dt">LNat</span> <span class="ot">-&gt;</span> <span class="dt">LNat</span>
+     <span class="dt">InfL</span> <span class="fu">:</span> <span class="dt">LNat</span>
+
+lift <span class="fu">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">LNat</span>
+lift <span class="dt">Z</span>     <span class="fu">=</span> <span class="dt">ZL</span>
+lift (<span class="dt">S</span> x) <span class="fu">=</span> <span class="dt">SL</span> (lift x)</code></pre></div>
+<p>This time I'll use <code>&lt;?=</code> as a type constructor for types that compare lifted <code>Nat</code>s.</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">infix <span class="dv">4</span> <span class="fu">&lt;?=</span>
+
+<span class="kw">data</span> (<span class="fu">&lt;?=</span>) <span class="fu">:</span> <span class="dt">LNat</span> <span class="ot">-&gt;</span> <span class="dt">LNat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+     <span class="dt">LEZeroL</span>  <span class="fu">:</span> <span class="dt">ZL</span> <span class="fu">&lt;?=</span> y
+     <span class="dt">LESuccL</span>  <span class="fu">:</span> x <span class="fu">&lt;?=</span> y <span class="ot">-&gt;</span> <span class="dt">SL</span> x <span class="fu">&lt;?=</span> <span class="dt">SL</span> y
+     <span class="dt">LEIL</span>  <span class="fu">:</span> x <span class="fu">&lt;?=</span> <span class="dt">InfL</span>
+
+<span class="kw">data</span> <span class="dt">CList</span> <span class="fu">:</span> <span class="dt">LNat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+     <span class="dt">CNil</span>  <span class="fu">:</span> <span class="dt">CList</span> inf
+     <span class="dt">CCons</span> <span class="fu">:</span> (x <span class="fu">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> (lift x) <span class="fu">&lt;?=</span> y <span class="ot">-&gt;</span> <span class="dt">CList</span> y <span class="ot">-&gt;</span> <span class="dt">CList</span> (lift x)
+
+clist <span class="fu">:</span> <span class="dt">CList</span> <span class="dt">ZL</span>
+clist <span class="fu">=</span> <span class="dt">CCons</span> <span class="dt">Z</span> <span class="dt">LEZeroL</span> (
+        <span class="dt">CCons</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) (<span class="dt">LESuccL</span> (<span class="dt">LESuccL</span> <span class="dt">LEZeroL</span>)) (
+        <span class="dt">CCons</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>))  <span class="dt">LEIL</span> <span class="dt">CNil</span>))
+
+<span class="kw">data</span> <span class="dt">OList</span> <span class="fu">:</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="kw">where</span>
+     <span class="dt">ONil</span>  <span class="fu">:</span> <span class="dt">OList</span> b
+     <span class="dt">OCons</span> <span class="fu">:</span> (x <span class="fu">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">LTE</span> b x <span class="ot">-&gt;</span> <span class="dt">OList</span> x <span class="ot">-&gt;</span> <span class="dt">OList</span> b
+
+olist <span class="fu">:</span> <span class="dt">OList</span> <span class="dt">Z</span>
+olist <span class="fu">=</span> <span class="dt">OCons</span> (<span class="dt">S</span> <span class="dt">Z</span>) <span class="dt">LTEZero</span> <span class="dt">ONil</span>
+
+olist2 <span class="fu">:</span> <span class="dt">OList</span> <span class="dt">Z</span>
+olist2 <span class="fu">=</span> <span class="dt">OCons</span> (<span class="dt">S</span> <span class="dt">Z</span>) <span class="dt">LTEZero</span> (<span class="dt">OCons</span> (<span class="dt">S</span> (<span class="dt">S</span> <span class="dt">Z</span>)) (<span class="dt">LTESucc</span> <span class="dt">LTEZero</span>) <span class="dt">ONil</span>)</code></pre></div>
+<p>Again, no issues with termination checker in <code>mergeO</code>.</p>
+<p>TODO: describe this</p>
+<div class="sourceCode"><pre class="sourceCode literate haskell"><code class="sourceCode haskell">lteLemma <span class="fu">:</span> (x, y <span class="fu">:</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Not</span> (<span class="dt">LTE</span> x y) <span class="ot">-&gt;</span> <span class="dt">LTE</span> y x
+lteLemma <span class="dt">Z</span> _ p         <span class="fu">=</span> absurd (p <span class="dt">LTEZero</span>)
+lteLemma _ <span class="dt">Z</span> _         <span class="fu">=</span> <span class="dt">LTEZero</span>
+lteLemma (<span class="dt">S</span> k) (<span class="dt">S</span> j) p <span class="fu">=</span> <span class="dt">LTESucc</span> (lteLemma k j (absurd <span class="fu">.</span> p <span class="fu">.</span> <span class="dt">LTESucc</span>))
+
+mergeO <span class="fu">:</span> <span class="dt">OList</span> b <span class="ot">-&gt;</span> <span class="dt">OList</span> b <span class="ot">-&gt;</span> <span class="dt">OList</span> b
+mergeO <span class="dt">ONil</span> ys <span class="fu">=</span> ys
+mergeO (<span class="dt">OCons</span> x blex xs) <span class="dt">ONil</span> <span class="fu">=</span> <span class="dt">OCons</span> x blex xs
+mergeO (<span class="dt">OCons</span> x blex xs) (<span class="dt">OCons</span> y bley ys) with (isLTE x y)
+  <span class="fu">|</span> <span class="dt">Yes</span> xley <span class="fu">=</span> <span class="dt">OCons</span> x blex (mergeO xs (<span class="dt">OCons</span> y xley ys))
+  <span class="fu">|</span> <span class="dt">No</span> nxley <span class="fu">=</span> <span class="kw">let</span> ylex <span class="fu">=</span> lteLemma x y nxley <span class="kw">in</span>
+                   <span class="dt">OCons</span> y bley (mergeO (<span class="dt">OCons</span> x ylex xs) ys)
+
+mergeTO <span class="fu">:</span> <span class="dt">DealT</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">OList</span> <span class="dt">Z</span>
+mergeTO <span class="dt">EmpT</span>          <span class="fu">=</span> <span class="dt">ONil</span>
+mergeTO (<span class="dt">LeafT</span> x)     <span class="fu">=</span> <span class="dt">OCons</span> x <span class="dt">LTEZero</span> <span class="dt">ONil</span>
+mergeTO (<span class="dt">NodeT</span> p l r) <span class="fu">=</span> mergeO (mergeTO l) (mergeTO r)
+
+sortO <span class="fu">:</span> <span class="dt">List</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">OList</span> <span class="dt">Z</span>
+sortO xs <span class="fu">=</span> mergeTO (dealT xs)</code></pre></div>
+</body>
+</html>

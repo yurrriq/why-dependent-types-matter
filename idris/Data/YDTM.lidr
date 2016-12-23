@@ -194,11 +194,19 @@ transpose (x :: xs) = zipWith (::) x (transpose xs)
 
 `vrevacc` from the paper is basically the local `go` from Idris's `reverse`.
 
-In the first clause we need to prove `n + 0 = n`, aka `plusZero` in the paper.
-Idris calls that `plusZeroRightNeutral` in `Prelude.Nat`.
+```idris
+reverse : Vect len elem -> Vect len elem
+reverse xs = go [] xs
+  where go : Vect n elem -> Vect m elem -> Vect (n+m) elem
+```
 
-Again, we can't just fill in the right-hand side of the second clause, because
-Idris doesn't know that `m + (1 + n)` equals `1 + (m + n)`.
+In the first clause we need to prove `n + 0 = n`, aka `plusZero` in the paper. Idris calls that `plusZeroRightNeutral` in `Prelude.Nat`.
+
+```idris
+go {n} acc [] = rewrite plusZeroRightNeutral n in acc
+```
+
+Again, we can't just fill in the right-hand side of the second clause, because Idris doesn't know that `m + (1 + n)` equals `1 + (m + n)`.
 
 Translating to Idris, We need to prove:
 
@@ -213,17 +221,11 @@ total plusSuccRightSucc : (left : Nat) -> (right : Nat) ->
   S (left + right) = left + (S right)
 ```
 
-We use `rewrite` to rewrite our value using `plusSuccRightSucc`. Since
-`plusSuccRightSucc` proves property in the opposite direction we use `sym` to
-reverse its sides.
+We use `rewrite` to rewrite our value using `plusSuccRightSucc`. Since `plusSuccRightSucc` proves property in the opposite direction we use `sym` to reverse its sides.
 
 ```idris
-reverse : Vect len elem -> Vect len elem
-reverse xs = go [] xs
-  where go : Vect n elem -> Vect m elem -> Vect (n+m) elem
-        go {n}         acc []        = rewrite plusZeroRightNeutral n in acc
-        go {n} {m=S m} acc (x :: xs) = rewrite sym $ plusSuccRightSucc n m
-                                       in go (x::acc) xs
+go {n} {m=S m} acc (x :: xs) = rewrite sym (plusSuccRightSucc n m) in
+                                       go (x::acc) xs
 ```
 
 

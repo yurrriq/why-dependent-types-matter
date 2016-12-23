@@ -33,20 +33,26 @@ are in the `Data.Vect` module and are not available by default in `prelude`, so
 we need to import them.
 
 > import Data.Vect
+>
+> %default total
 
 == Introduction
 
-> %access public export
->
-> data Order : Type where
->      le : Order
->      ge : Order
->
-> order : Nat -> Nat -> Order
-> order Z y         = le
-> order (S x) Z     = ge
-> order (S x) (S y) = order x y
->
+```idris
+||| Proofs that `n` is less than or equal to `m`
+||| @ n the smaller number
+||| @ m the larger number
+data LTE  : (n, m : Nat) -> Type where
+  ||| Zero is the smallest Nat
+  LTEZero : LTE Z    right
+  ||| If n <= m, then n + 1 <= m + 1
+  LTESucc : LTE left right -> LTE (S left) (S right)
+
+
+Uninhabited (LTE (S n) Z) where
+  uninhabited LTEZero impossible
+```
+
 > deal : List a -> (List a, List a)
 > deal []        = ([] , [])
 > deal (x :: []) = (x :: [] , [])
@@ -60,20 +66,20 @@ There's a small issue of name clash between our `merge` and `sort` functions and
 the same functions defined in `prelude`. Let's just rename our functions to
 `mergeL` and `sortL` (`L` indicates that they work on lists).
 
-> total
 > mergeL : List Nat -> List Nat -> List Nat
 > mergeL []        ys             = ys
 > mergeL xs        []             = xs
-> mergeL (x :: xs) (y :: ys) with (order x y)
->   | le = x :: mergeL xs (y :: ys)
->   | ge = y :: mergeL (x :: xs) ys
+> mergeL (x :: xs) (y :: ys) with (isLTE x y)
+>   | Yes prf   = x :: mergeL xs (y :: ys)
+>   | No contra = y :: mergeL (x :: xs) ys
 
-Still, sortL is not recognized as total.
+Still, `sortL` is not recognized as total.
 
->sortL : List Nat -> List Nat
->sortL xs with (deal xs)
->  | (ys , []) = ys
->  | (ys , zs) = mergeL (sortL ys) (sortL zs)
+> partial
+> sortL : List Nat -> List Nat
+> sortL xs with (deal xs)
+>   | (ys, []) = ys
+>   | (ys, zs) = mergeL (sortL ys) (sortL zs)
 
 <!-- Section 3.1 : Totality is Good for more than the Soul -->
 
@@ -86,29 +92,28 @@ I'll use the `Refl` provide by Idris.
 == Defusing General Recursion
 
 > data Parity : Type where
->      p0 : Parity
->      p1 : Parity
+>      P0 : Parity
+>      P1 : Parity
 >
-> using (X : Type)
->   data DealT : X -> Type where
->     empT  : DealT X
->     leafT : X -> DealT X
->     nodeT : Parity -> DealT X -> DealT X -> DealT X
+> data DealT : a -> Type where
+>      EmpT  : DealT a
+>      LeafT : a -> DealT a
+>      NodeT : Parity -> DealT a -> DealT a -> DealT a
 >
-> insertT : {X : Type} -> X -> DealT X -> DealT X
-> insertT x empT           = leafT x
-> insertT x (leafT y)      = nodeT p0 (leafT y) (leafT x)
-> insertT x (nodeT p0 l r) = nodeT p1 (insertT x l) r
-> insertT x (nodeT p1 l r) = nodeT p0 l (insertT x r)
+> insertT : a -> DealT a -> DealT a
+> insertT x EmpT           = LeafT x
+> insertT x (LeafT y)      = NodeT P0 (LeafT y) (LeafT x)
+> insertT x (NodeT P0 l r) = NodeT P1 (insertT x l) r
+> insertT x (NodeT P1 l r) = NodeT P0 l (insertT x r)
 >
-> dealT : {X : Type} -> List X -> DealT X
-> dealT []       = empT
+> dealT : List a -> DealT a
+> dealT []        = EmpT
 > dealT (x :: xs) = insertT x (dealT xs)
 >
 > mergeT : DealT Nat -> List Nat
-> mergeT empT          = []
-> mergeT (leafT x)     = x :: []
-> mergeT (nodeT p l r) = merge (mergeT l) (mergeT r)
+> mergeT EmpT          = []
+> mergeT (LeafT x)     = x :: []
+> mergeT (NodeT p l r) = merge (mergeT l) (mergeT r)
 >
 > sortT : List Nat -> List Nat
 > sortT xs = mergeT (dealT xs)
@@ -126,104 +131,65 @@ data Vect : Nat -> Type -> Type
 
 This is slightly different than Agda's definition: the index comes first and the
 type parameter comes second. Note that prior to Idris 0.9.9, the type parameter
-was first and the index was second - if you're using an older version of Idris,
-this code will not work.
-
-> vtail : {X : Type} -> {n : Nat} -> Vect (S n) X -> Vect n X
-> vtail (x :: xs) = xs
-
-Note that we can skip implicit arguments that can be deduced, but
-we must use lower-case letters to denote type variables. So we can write:
+was first and the index was second.
 
 ```idris
-vtail : Vect (S n) x -> Vect n x
-```
-
-instead of
-
-```idris
-vtail : {X : Type} -> {n : Nat} -> Vect (S n) X -> Vect n X
-```
-
-but we can't write:
-
-```idris
-vtail : Vect (S n) X -> Vect n X
+||| All but the first element of the vector
+tail : Vect (S len) elem -> Vect len elem
+tail (x::xs) = xs
 ```
 
 From now on I will avoid implicit arguments in type signatures, unless they will
 be pattern-matched in the definition.
 
-Idris allows me to use `<@>` as an infix operator - goodbye `vapp`! The tricky
-part is that if we want to use `<@>` as an infix operator, we need to declare
-its fixity and precedence. If we want to use it as infix operator in the
-recursive call of its definition we need to declare fixity of `<@>` before
-defining `<@>` itself.
-
-> infixl 9 <@>
->
-> (<@>) : Vect n (a -> b) -> Vect n a -> Vect n b
-> (<@>) Nil       Nil       = Nil
-> (<@>) (f :: fs) (s :: ss) = (f s) :: (fs <@> ss)
-
 As a reminder, here'e the definition of addition:
 
 ```idris
-_+_ : Nat -> Nat -> Nat
-Z  + n = n
-S m + n = S (m + n)
+||| Add two natural numbers.
+||| @ n the number to case-split on
+||| @ m the other number
+total plus : (n, m : Nat) -> Nat
+plus Z right        = right
+plus (S left) right = S (plus left right)
 ```
 
 And here's definition of appending two Vectors:
 
 ```idris
-(++) : Vect n a -> Vect m a -> Vect (n + m) a
-(++) Nil       ys = ys
-(++) (x :: xs) ys = x :: (xs ++ ys)
+||| Append two vectors
+(++) : (xs : Vect m elem) -> (ys : Vect n elem) -> Vect (m + n) elem
+(++) []      ys = ys
+(++) (x::xs) ys = x :: xs ++ ys
 ```
 
 In both cases I'll be using the built-in Idris definitions.
 
-Idris requires that implicit arguments be named explicitly in the pattern
-matching.
-
-> vec : {n : Nat} -> a -> Vect n a
-> vec {n=Z}   x = Nil
-> vec {n=S a} x = x :: (vec x)
->
-> xpose : Vect m (Vect n a) -> Vect n (Vect m a)
-> xpose Nil          = vec Nil
-> xpose (xj :: xi'j) = vec (::) <@> xj <@> (xpose xi'j)
-
-Above we defined `xpose` using our definitions of `vec` and `<@>`. These two
-functions make `Vect` an `Applicative` -- `vec` is pure, `<@>` is application
-(in Haskell and Idris usually named `<$>`). Idris has a very cool thing, called
-idiom brackets, that allows us to rewrite:
-
 ```idris
-pure f <$> x <$> y
-```
-as
+||| Repeat some value some number of times.
+|||
+||| @ len the number of times to repeat it
+||| @ x the value to repeat
+replicate : (len : Nat) -> (x : elem) -> Vect len elem
+replicate Z     x = []
+replicate (S k) x = x :: replicate k x
 
-```idris
-[| f x |]
+||| Transpose a Vect of Vects, turning rows into columns and vice versa.
+|||
+||| As the types ensure rectangularity, this is an involution, unlike `Prelude.List.transpose`.
+transpose : {n : Nat} -> Vect m (Vect n elem) -> Vect n (Vect m elem)
+transpose []        = replicate _ []
+transpose (x :: xs) = zipWith (::) x (transpose xs)
 ```
 
-Here's an alternative definition of `xpose` that uses idiom brackets (remember
-that it uses Idris's built-in definitions of `pure` and `<$>` instead of our
-`vapp` and `<@>`).
-
-> xpose' : Vect m (Vect n a) -> Vect n (Vect m a)
-> xpose' Nil          = [| Nil |]
-> xpose' (xj :: xi'j) = [| xj :: xpose' xi'j |]
 
 <!-- Section 4.1 -->
 
 == Static Indexing and Proofs
 
 > vrevacc : Vect n a -> Vect m a -> Vect (n + m) a
-> vrevacc Nil       ys = ys
-> vrevacc (x :: xs) ys = ?zonk --vrevacc xs (x :: ys)
+> vrevacc [] ys                      = ys
+> vrevacc {n = S k} {m} (x :: xs) ys = rewrite plusSuccRightSucc k m in
+>                                              vrevacc xs (x :: ys)
 
 Again, we can't just fill in the right code because Idris doesn't know that `m +
 (1 + n)` equals `1 + (m + n)`. Once again have to prove it, but this time we
@@ -233,7 +199,7 @@ properties provided by `prelude`.
 We need to prove that:
 
 ```idris
-plus n (S m) = S (plus n m)
+plus k (S m) = plus (S k) m
 ```
 
 Luckily, Idris comes with proofs of basic properties defined in the `prelude`
@@ -247,69 +213,49 @@ total plusSuccRightSucc : (left : Nat) -> (right : Nat) ->
 
 We will use `rewrite` to rewrite our value using `plusSuccRightSucc`. Since
 `plusSuccRightSucc` proves property in the opposite direction we use `sym` to
-reverse its sides:
-
-We rewrote the goal to a form which equals to our value.
-
-<!-- FIXME: Since the equality is now obvious we apply trvial tactic and end -->
-<!-- the proof with qed: -->
-<!-- We need to place the proof in the source code. We can use :addproof -->
-<!-- to have the generated proof automcatically added at the end of source -->
-<!-- file. -->
+reverse its sides.
 
 <!-- Section 4.2 -->
 == Sized Merge-Sort
 
 > mergeS : Vect n Nat -> Vect m Nat -> Vect (n + m) Nat
-> mergeS Nil       ys  = ys
-> mergeS (x :: xs) Nil ?= x :: xs
-> mergeS (x :: xs) (y :: ys) with (order x y)
->   | le  = x :: mergeS xs (y :: ys)
->   | ge ?= y :: mergeS (x :: xs) ys
->
-> mergeS_lemma_1 = proof
->   intros
->   rewrite sym (plusZeroRightNeutral n)
->   trivial
->
-> mergeS_lemma_2 = proof
->   intros
->   rewrite (plusSuccRightSucc n n1)
->   trivial
+> mergeS [] ys                  = ys
+> mergeS (x :: xs) [] {n = S k} = rewrite plusZeroRightNeutral (S k) in
+>                                         x :: xs
+> mergeS (x :: xs) (y :: ys) {n = S k} {m = S j} with (isLTE x y)
+>   | Yes prf   = x :: mergeS xs (y :: ys)
+>   | No contra = rewrite sym (plusSuccRightSucc k j) in
+>                         y :: mergeS (x :: xs) ys
 >
 > p2n : Parity -> Nat
-> p2n p0 = Z
-> p2n p1 = S Z
+> p2n P0 = Z
+> p2n P1 = S Z
 
 I renamed the data constructors to silence Idris warnings.
 
-> using (X : Type)
->   data DealTS : X -> Nat -> Type where
->     empTS  : DealTS X Z
->     leafTS : X -> DealTS X (S Z)
->     nodeTS : {n : Nat} -> (p : Parity) -> DealTS X (p2n p + n) -> DealTS X n
->            -> DealTS X ((p2n p + n) + n)
+> data DealTS : a -> Nat -> Type where
+>      EmpTS  : DealTS a Z
+>      LeafTS : a -> DealTS a (S Z)
+>      NodeTS : {n : Nat} -> (p : Parity) ->
+>               DealTS a (p2n p + n) -> DealTS a n ->
+>               DealTS a ((p2n p + n) + n)
 >
 > mergeTS : DealTS Nat n -> Vect n Nat
-> mergeTS empTS          = Nil
-> mergeTS (leafTS x)     = x :: Nil
-> mergeTS (nodeTS p l r) = mergeS (mergeTS l) (mergeTS r)
+> mergeTS EmpTS          = []
+> mergeTS (LeafTS x)     = [x]
+> mergeTS (NodeTS p l r) = mergeS (mergeTS l) (mergeTS r)
 >
 > insertTS : {n : Nat} -> {X : Type} -> X -> DealTS X n -> DealTS X (S n)
-> insertTS x empTS                = leafTS x
-> insertTS x (leafTS y         )  = nodeTS p0 (leafTS y) (leafTS x)
-> insertTS x (nodeTS     p0 l r)  = nodeTS p1 (insertTS x l) r
-> insertTS x (nodeTS {n} p1 l r) ?= nodeTS p0 l (insertTS x r)
+> insertTS x EmpTS               = LeafTS x
+> insertTS x (LeafTS y         ) = NodeTS P0 (LeafTS y) (LeafTS x)
+> insertTS x (NodeTS     P0 l r) = NodeTS P1 (insertTS x l) r
+> insertTS x (NodeTS {n} P1 l r) = rewrite plusSuccRightSucc n n in
+>                                          NodeTS P0 l (insertTS x r)
 
 <!-- Lest equation of insertTS looks much simpler than in Agda! -->
 
-> insertTS_lemma_1 = proof
->   intros
->   rewrite sym (plusSuccRightSucc n n)
->   trivial
->
 > dealTS : Vect n a -> DealTS a n
-> dealTS Nil       = empTS
+> dealTS []        = EmpTS
 > dealTS (x :: xs) = insertTS x (dealTS xs)
 >
 > sortTS : Vect n Nat -> Vect n Nat
@@ -320,37 +266,34 @@ I renamed the data constructors to silence Idris warnings.
 
 == Evidence of Ordering
 
-Sadly, Idris does not allow Unicode in operators, so I have to use a name other
-than `≤` and `<=` (which is already defined).
+```idris
+||| If two numbers are ordered, their predecessors are too
+fromLteSucc : (S m `LTE` S n) -> (m `LTE` n)
+fromLteSucc (LTESucc x) = x
 
-> infix 4 <!=
->
-> data (<!=) : Nat -> Nat -> Type where
->      le0 : Z <!= y
->      leS : x <!= y -> S x <!= S y
->
-> data OrderD : Nat -> Nat -> Type where
->      leD : x <!= y -> OrderD x y
->      geD : y <!= x -> OrderD x y
->
-> orderD : (x : Nat) -> (y : Nat) -> OrderD x y
-> orderD Z    y     = leD le0
-> orderD (S x) Z    = geD le0
-> orderD (S x) (S y) with (orderD x y)
->   | leD xley = leD (leS xley)
->   | geD ylex = geD (leS ylex)
->
-> leRefl : {x : Nat} -> x <!= x
-> leRefl {x=Z}   = le0
-> leRefl {x=S _} = leS leRefl
->
-> leTrans : {x, y, z : Nat} -> x <!= y -> y <!= z -> x <!= z
-> leTrans le0      yz       = le0
-> leTrans (leS xy) (leS yz) = leS (leTrans xy yz)
->
-> leASym : {x, y : Nat} -> x <!= y -> y <!= x -> x = x
-> leASym le0      le0      = Refl
-> leASym (leS xy) (leS yx) = Refl
+||| A decision procedure for `LTE`
+isLTE : (m, n : Nat) -> Dec (m `LTE` n)
+isLTE Z n = Yes LTEZero
+isLTE (S k) Z = No succNotLTEzero
+isLTE (S k) (S j) with (isLTE k j)
+isLTE (S k) (S j) | (Yes prf) = Yes (LTESucc prf)
+isLTE (S k) (S j) | (No contra) = No (contra . fromLteSucc)
+
+||| `LTE` is reflexive.
+lteRefl : LTE n n
+lteRefl {n = Z}   = LTEZero
+lteRefl {n = S k} = LTESucc lteRefl
+
+||| `LTE` is transitive
+lteTransitive : LTE n m -> LTE m p -> LTE n p
+lteTransitive LTEZero y = LTEZero
+lteTransitive (LTESucc x) (LTESucc y) = LTESucc (lteTransitive x y)
+```
+
+
+> lteASym : {x, y : Nat} -> LTE x y -> LTE y x -> x = x
+> lteASym LTEZero      LTEZero      = Refl
+> lteASym (LTESucc xy) (LTESucc yx) = Refl
 
 <!-- Section 5.2 -->
 
@@ -359,7 +302,7 @@ than `≤` and `<=` (which is already defined).
 > data LNat : Type where
 >      ZL   : LNat
 >      SL   : LNat -> LNat
->      infL : LNat
+>      InfL : LNat
 >
 > lift : Nat -> LNat
 > lift Z     = ZL
@@ -371,42 +314,48 @@ lifted `Nat`s.
 > infix 4 <?=
 >
 > data (<?=) : LNat -> LNat -> Type where
->      le0L  : ZL <?= y
->      leSL  : x <?= y -> SL x <?= SL y
->      leIL  : x <?= infL
+>      LEZeroL  : ZL <?= y
+>      LESuccL  : x <?= y -> SL x <?= SL y
+>      LEIL  : x <?= InfL
 >
 > data CList : LNat -> Type where
->      cnil  : CList inf
->      ccons : (x : Nat) -> (lift x) <?= y -> CList y -> CList (lift x)
+>      CNil  : CList inf
+>      CCons : (x : Nat) -> (lift x) <?= y -> CList y -> CList (lift x)
 >
 > clist : CList ZL
-> clist = ccons Z le0L (
->         ccons (S (S Z)) (leSL (leSL le0L)) (
->         ccons (S (S Z))  leIL cnil))
+> clist = CCons Z LEZeroL (
+>         CCons (S (S Z)) (LESuccL (LESuccL LEZeroL)) (
+>         CCons (S (S Z))  LEIL CNil))
 >
 > data OList : Nat -> Type where
->      onil  : OList b
->      ocons : (x : Nat) -> b <!= x -> OList x -> OList b
+>      ONil  : OList b
+>      OCons : (x : Nat) -> LTE b x -> OList x -> OList b
 >
 > olist : OList Z
-> olist = ocons (S Z) le0 onil
+> olist = OCons (S Z) LTEZero ONil
 >
 > olist2 : OList Z
-> olist2 = ocons (S Z) le0 (ocons (S (S Z)) (leS le0) onil)
+> olist2 = OCons (S Z) LTEZero (OCons (S (S Z)) (LTESucc LTEZero) ONil)
 
 Again, no issues with termination checker in `mergeO`.
 
+> lteLemma : (x, y : Nat) -> Not (LTE x y) -> LTE y x
+> lteLemma Z _ p         = absurd (p LTEZero)
+> lteLemma _ Z _         = LTEZero
+> lteLemma (S k) (S j) p = LTESucc (lteLemma k j (absurd . p . LTESucc))
+>
 > mergeO : OList b -> OList b -> OList b
-> mergeO onil ys = ys
-> mergeO (ocons x blex xs) onil = ocons x blex xs
-> mergeO (ocons x blex xs) (ocons y bley ys) with (orderD x y)
->   | leD xley = ocons x blex (mergeO xs (ocons y xley ys))
->   | geD ylex = ocons y bley (mergeO (ocons x ylex xs) ys)
+> mergeO ONil ys = ys
+> mergeO (OCons x blex xs) ONil = OCons x blex xs
+> mergeO (OCons x blex xs) (OCons y bley ys) with (isLTE x y)
+>   | Yes xley = OCons x blex (mergeO xs (OCons y xley ys))
+>   | No nxley = let ylex = lteLemma x y nxley in
+>                    OCons y bley (mergeO (OCons x ylex xs) ys)
 >
 > mergeTO : DealT Nat -> OList Z
-> mergeTO empT          = onil
-> mergeTO (leafT x)     = ocons x le0 onil
-> mergeTO (nodeT p l r) = mergeO (mergeTO l) (mergeTO r)
+> mergeTO EmpT          = ONil
+> mergeTO (LeafT x)     = OCons x LTEZero ONil
+> mergeTO (NodeT p l r) = mergeO (mergeTO l) (mergeTO r)
 >
 > sortO : List Nat -> OList Z
 > sortO xs = mergeTO (dealT xs)

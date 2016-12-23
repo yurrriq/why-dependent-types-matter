@@ -1,0 +1,18 @@
+package ydtm
+
+modules = Data.YDTM
+
+-- tests =
+
+brief = "Idris translations of the examples from 'Why Dependent Types Matter'."
+version = 0.0.1
+readme = README.md
+license = MIT
+author = "Eric Bailey"
+
+homepage = https://github.com/yurrriq/why-dependent-types-matter
+sourceloc = git://git@github.com:yurrriq/why-dependent-types-matter.git
+bugtracker = https://github.com/yurrriq/why-dependent-types-matter/issues
+
+sourcedir = idris
+-- opts =

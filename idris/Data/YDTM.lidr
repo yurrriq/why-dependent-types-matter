@@ -1,6 +1,7 @@
 ---
 author: Jan Stolarek <jan.stolarek@p.lodz.pl>
 license: Public Domain
+
 ---
 
 = Why Dependent Types Matter
@@ -8,29 +9,13 @@ license: Public Domain
 > ||| Why Dependent Types Matter
 > module Data.YDTM
 
-This module contains an Idris implementation of the code presented in *Why
-Dependent Types Matter* by Thorsten Altenkirch, Conor McBride and James McKinna.
-The original code in the paper was written in Epigram. Previously I rewrote that
-code to Agda and now I made another rewrite in Idris. With the Idris
-implementation, I decided to use many of the built-in features. This made some
-things (like proofs) a lot simpler. Also, at the moment, Idris's totality
-checker does a better job than Agda's (remember that `idris-mode` does not
-highlight partial functions - you need to enable totality checking via the
-command line option, `total` annotation or in the REPL using the `:total`
-command).
+This module contains an Idris implementation of the code presented in *Why Dependent Types Matter* by Thorsten Altenkirch, Conor McBride and James McKinna. The original code in the paper was written in Epigram. Previously I rewrote that code to Agda and now I made another rewrite in Idris. With the Idris implementation, I decided to use many of the built-in features. This made some things (like proofs) a lot simpler. Also, at the moment, Idris's totality checker does a better job than Agda's (remember that `idris-mode` does not highlight partial functions - you need to enable totality checking via the command line option, `total` annotation or in the REPL using the `:total` command).
 
-This file is a rewrite of the Agda implementation. I decided to remove all
-original comments from the `.agda` file and comment only the things that are
-different in Idris. This allows you to focus easily on the new stuff, but it
-also assumes that you've read Agda implementation.
+This file is a rewrite of the Agda implementation. I decided to remove all original comments from the `.agda` file and comment only the things that are different in Idris. This allows you to focus easily on the new stuff, but it also assumes that you've read Agda implementation.
 
 This code was written and tested in Idris 0.99. YMMV
 
-In case of Idris, we don't need to reinvent the wheel. We have `Nat`, `Bool`,
-`List`s and tuples (`Pair`s) already at hand in the standard `prelude`, which is
-imported by default into every Idris module. Starting with Idris 0.9.16, vectors
-are in the `Data.Vect` module and are not available by default in `prelude`, so
-we need to import them.
+In case of Idris, we don't need to reinvent the wheel. We have `Nat`, `Bool`, `List`s and tuples (`Pair`s) already at hand in the standard `prelude`, which is imported by default into every Idris module. Starting with Idris 0.9.16, vectors are in the `Data.Vect` module and are not available by default in `prelude`, so we need to import them.
 
 > import Data.Vect
 >
@@ -79,14 +64,12 @@ implementation Ord Nat where
 
 The rest we'll need to write ourselves.
 
-To avoid naming conflicts between our `merge` and `sort` functions and their
-`prelude` analogs, we can `%hide` them.
+To avoid naming conflicts between our `merge` and `sort` functions and their `prelude` analogs, we can `%hide` them.
 
 > %hide List.merge
 > %hide List.sort
 
-Problems we had with termination checking of merge function in Agda are gone in
-Idris.
+Problems we had with termination checking of merge function in Agda are gone in Idris.
 
 > namespace Introduction
 >
@@ -160,17 +143,14 @@ data Vect : Nat -> Type -> Type
      (::) : a -> Vect k a -> Vect (S k) a
 ```
 
-This is slightly different than Agda's definition: the index comes first and the
-type parameter comes second. Note that prior to Idris 0.9.9, the type parameter
-was first and the index was second.
+This is slightly different than Agda's definition: the index comes first and the type parameter comes second. Note that prior to Idris 0.9.9, the type parameter was first and the index was second.
 
 ```idris
 tail : Vect (S len) elem -> Vect len elem
 tail (x::xs) = xs
 ```
 
-For Epigram's 'vectorized application' we have `Vect`'s `Applicative`
-implementation:
+For Epigram's 'vectorized application' we have `Vect`'s `Applicative` implementation:
 
 ```idris
 implementation Applicative (Vect k) where
@@ -196,7 +176,7 @@ And here's definition of appending two Vectors:
 
 In both cases I'll be using the built-in Idris definitions.
 
-Idris also provides `replicate` (like $vec_n$) and `transpose` (like `xpose`):
+Idris also provides `replicate` (née $vec_n$) and `transpose` (née `xpose`):
 
 ```idris
 replicate : (len : Nat) -> (x : elem) -> Vect len elem
@@ -338,8 +318,7 @@ lteTransitive (LTESucc x) (LTESucc y) = LTESucc (lteTransitive x y)
 > lift Z     = ZL
 > lift (S x) = SL (lift x)
 
-This time I'll use `<?=` as a type constructor for types that compare
-lifted `Nat`s.
+This time I'll use `<?=` as a type constructor for types that compare lifted `Nat`s.
 
 > infix 4 <?=
 >
